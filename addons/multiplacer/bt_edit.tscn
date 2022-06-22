@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=2]
+
+[ext_resource path="res://addons/multiplacer/icon_hand.png" type="Texture" id=1]
+
+[node name="bt_edit" type="Button"]
+anchor_right = 0.134766
+anchor_bottom = 0.0533333
+toggle_mode = true
+text = "Edit"
+icon = ExtResource( 1 )
+expand_icon = true
+__meta__ = {
+"_edit_use_anchors_": true
+}
