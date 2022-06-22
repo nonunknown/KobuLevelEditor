@@ -6,6 +6,7 @@ var bt_edit:Button = null
 var camera:Camera = null
 var cursor:Spatial = null
 var undo_redo:UndoRedo
+var ray:RayCast
 
 const ps_edit = preload("res://addons/multiplacer/bt_edit.tscn")
 const ps_cursor = preload("res://addons/multiplacer/models/mp_cursor.tscn")
@@ -55,6 +56,7 @@ func _on_toggled_edit(toggled:bool) -> void:
 			return
 		if (cursor == null): 
 			cursor = ps_cursor.instance()
+			ray = cursor.get_node("RayCast")
 			get_editor_interface().get_edited_scene_root().add_child(cursor)
 		cursor.visible = true
 		
@@ -106,11 +108,17 @@ func handles(object: Object) -> bool:
 var from
 var to
 var dict := {}
+var holding_ctrl:bool = false
 
 func forward_spatial_gui_input(camera: Camera, event: InputEvent) -> bool:
 	if !bt_edit.pressed: return false
 	var captured_event = false
 	
+	if event is InputEventKey:
+		if (event.pressed && event.scancode == KEY_CONTROL):
+			holding_ctrl = true
+		else:
+			holding_ctrl = false
 
 	if event is InputEventMouseMotion:
 		
@@ -120,17 +128,30 @@ func forward_spatial_gui_input(camera: Camera, event: InputEvent) -> bool:
 		dict = space_state.intersect_ray(from,to)
 		if (dict.empty() == false):
 			cursor.global_transform.origin = dict.position
+			ray.force_raycast_update()
+			var normal:Vector3 = ray.get_collision_normal()
+			cursor.global_transform.basis = Basis(normal)
+#			cursor.global_transform = align_with_y(cursor.global_transform,normal)
+#			cursor.global_transform.origin = dict.position
 			cursor.visible = true
 		else:
 			cursor.visible = false
 		
 	if event is InputEventMouseButton:
-		if event.pressed && event.button_index == BUTTON_LEFT:
-			add_instance()
-			captured_event = true
+		if event.pressed:
+			if  event.button_index == BUTTON_LEFT:
+				add_instance()
+				captured_event = true
+			if holding_ctrl:
+				if event.button_index == BUTTON_WHEEL_UP:
+					cursor.rotate_object_local(Vector3.UP, .5)
+					return true
+				elif event.button_index == BUTTON_WHEEL_DOWN:
+					cursor.rotate_object_local(Vector3.UP, -.5)
+					return true
+					pass
 
 	return captured_event
-	pass
 
 
 func add_instance() -> void:
@@ -157,3 +178,10 @@ func undo_add_instance() -> void:
 	mm.visible_instance_count = index
 	print("removed instance: ", index)
 	pass
+
+#helper function to align with ground
+func align_with_y(xform, new_y):
+	xform.basis.y = new_y
+	xform.basis.x = -xform.basis.z.cross(new_y)
+	xform.basis = xform.basis.orthonormalized()
+	return xform
