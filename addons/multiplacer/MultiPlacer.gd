@@ -4,13 +4,14 @@ extends EditorPlugin
 var eds:EditorSelection = null
 var bt_edit:Button = null
 var camera:Camera = null
-var pointer:CameraPoint = null
+var cursor:Spatial = null
+var undo_redo:UndoRedo
 
 const ps_edit = preload("res://addons/multiplacer/bt_edit.tscn")
 const ps_cursor = preload("res://addons/multiplacer/models/mp_cursor.tscn")
-var cursor:Spatial = null
 
 func _enter_tree() -> void:
+	undo_redo = get_undo_redo()
 #	set_process(false)
 #	set_process_unhandled_input(false)
 	bt_edit = ps_edit.instance()
@@ -64,6 +65,8 @@ func _on_toggled_edit(toggled:bool) -> void:
 var m_instance:MultiMeshInstance
 var mm:MultiMesh
 var max_instances:int = -1
+var index:int = -1
+
 func validate_multimesh() -> bool:
 	m_instance = eds.get_selected_nodes()[0]
 	
@@ -73,6 +76,13 @@ func validate_multimesh() -> bool:
 		
 	mm = m_instance.multimesh
 	max_instances = mm.instance_count
+	# the 2 lines below makes sures when the user resets the engine
+	# the index continue from where it stopped
+	if (index == -1):
+		if ( mm.visible_instance_count > 0 ):
+			index = mm.visible_instance_count
+		else:
+			index = 0
 	
 	if ( mm.transform_format != mm.TRANSFORM_3D ):
 		printerr("Transform format must be 3D")
@@ -85,7 +95,7 @@ func validate_multimesh() -> bool:
 	if (mm.instance_count < 1):
 		printerr("instance count is less than 1!")
 		push_warning("changing the instance count value after you've placed some meshes, will reset all meshes you've placed, be warned! (It will be improved in future)")
-	
+		return false
 	
 	return true
 
@@ -122,14 +132,28 @@ func forward_spatial_gui_input(camera: Camera, event: InputEvent) -> bool:
 	return captured_event
 	pass
 
-var index:int = 0
 
 func add_instance() -> void:
 	if (index >= max_instances):
 		push_warning("max instances was reached, you must change the instance count, but be warned, you'll have to place all of them again")
 		return
+	
+	undo_redo.create_action("add multimesh instance")
+	undo_redo.add_do_method(self,"do_add_instance")
+	undo_redo.add_undo_method(self, "undo_add_instance")
+	undo_redo.commit_action()
+	pass
+
+func do_add_instance() -> void:
 	mm.set_instance_transform(index, cursor.global_transform)
 	print("added instance: ", index)
 	index += 1
 	mm.visible_instance_count = index
+	pass
+
+func undo_add_instance() -> void:
+	if (index <= 0): return
+	index -= 1
+	mm.visible_instance_count = index
+	print("removed instance: ", index)
 	pass
